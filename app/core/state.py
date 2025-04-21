@@ -19,7 +19,8 @@ class CVState(BaseModel):
     is_complete: bool = False
 
     @field_validator("language")
-    def validate_language(self, v: str) -> str:
+    @classmethod
+    def validate_language(cls, v: str) -> str:
         valid_languages = ["en", "ar"]
         if v not in valid_languages:
             raise ValueError(
@@ -28,7 +29,8 @@ class CVState(BaseModel):
         return v
 
     @field_validator("current_section")
-    def validate_section(self, v: str) -> str:
+    @classmethod
+    def validate_section(cls, v: str) -> str:
         valid_sections = [
             "personal_info",
             "education",
