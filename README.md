@@ -41,16 +41,23 @@ A modern, real-time CV builder that leverages LangGraph and FastAPI to create pr
    (Using uv – Ultra-fast Python package installer)
    ```bash
    uv sync
+   pre-commit install
    ```
-3. **Start Redis server:**
+3. **Setup Code Quality Tools:**
+   ```bash
+   # Ruff and pre-commit hooks will run automatically on commits
+   # Manual run
+   pre-commit run --all-files
+   ```
+4. **Start Redis server:**
    ```bash
    ./redis.sh
    ```
-4. **Set your OpenAI API key:**
+5. **Set your OpenAI API key:**
    ```bash
    echo "OPENAI_API_KEY=your-key-here" > .env
    ```
-5. **Run the application:**
+6. **Run the application:**
    ```bash
    uv run fastapi dev
    ```
