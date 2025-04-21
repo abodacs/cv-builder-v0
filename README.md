@@ -6,7 +6,6 @@ A modern, real-time CV builder that leverages LangGraph and FastAPI to create pr
 - [Features](#features)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
-- [Code Highlights](#code-highlights)
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
 - [Contributing](#contributing)
@@ -62,43 +61,40 @@ A modern, real-time CV builder that leverages LangGraph and FastAPI to create pr
    uv run fastapi dev
    ```
 
-## 💡 Code Highlights
-
-### Conversation Flow with LangGraph
-```py
-workflow = StateGraph(CVState)
-workflow.add_node("process_input", process_input)
-workflow.add_node("generate_prompt", generate_prompt)
-workflow.set_entry_point("process_input")
-```
-*Manages the conversation flow covering sections such as Personal Information, Education, Work Experience, Skills, and Review & Generation.*
-
-### Real-time State Management (Redis)
-```py
-def save_state(session_id: str, state: CVState):
-    redis_client.setex(f"cv_session:{session_id}", 3600, json.dumps(state.dict()))
-```
-
-### WebSocket Communication
-```py
-@app.websocket("/ws/cv_builder")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    # Real-time message handling
-```
-
 ## 📁 Project Structure
 
 ```
 .
 ├── app/
-│   ├── __init__.py
-│   └── main.py          // Main application logic
-├── static/              // Generated PDFs
-├── Dockerfile
-├── pyproject.toml       // Dependencies
-├── redis.sh            // Redis startup script
-└── README.md
+│   ├── core/                          # Core application components
+│   │   ├── config.py                  # Environment and app configuration
+│   │   ├── constants.py               # Global constants and enums
+│   │   └── state.py                   # CV state management
+│   ├── handlers/                      # CV section handlers
+│   │   ├── education.py               # Education section logic
+│   │   ├── experience.py              # Work experience handler
+│   │   ├── finalize.py                # CV finalization and export
+│   │   ├── personal_info.py           # Personal details handler
+│   │   └── skills.py                  # Skills section processor
+│   ├── services/                      # External services integration
+│   │   ├── pdf.py                     # PDF generation service
+│   │   ├── redis_store.py             # Redis state management
+│   │   └── workflow.py                # LangGraph workflow engine
+│   ├── utils/                         # Utility functions
+│   │   └── text.py                    # Text processing helpers
+│   ├── web/                           # Web interface components
+│   │   ├── app.py                     # FastAPI application
+│   │   ├── templates.py               # HTML templates
+│   │   └── websocket.py               # WebSocket handlers
+│   └── main.py                        # Application entry point
+├── static/
+│   └── fonts/                         # PDF generation fonts
+├── Dockerfile                         # Container configuration
+├── pyproject.toml                     # Project dependencies
+├── redis.sh                           # Redis startup script
+├── ruff.toml                          # Ruff linter config
+├── uv.lock                            # UV dependency lock
+└── README.md                          # Project documentation
 ```
 
 ## 🛠️ Tech Stack
