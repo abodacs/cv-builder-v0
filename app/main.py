@@ -1,19 +1,33 @@
+# Web Framework
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+
+# AI/Language Processing
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
+
+# Data Models and Types
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
+
+# PDF Generation
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+
+# Utilities
 import os
-from dotenv import load_dotenv
-load_dotenv()
 import json
 import uuid
 import redis
 import uvicorn
+from dotenv import load_dotenv
+
+# Local imports
+from .template import HTML
+
+# Load environment variables
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -31,6 +45,7 @@ llm = ChatOpenAI(model="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY"))
 
 # Define CVState
 class CVState(BaseModel):
+    language: str = "ar"  # Default to Arabic
     personal_info: Optional[Dict] = None
     education: List[Dict] = []
     work_experience: List[Dict] = []
@@ -42,117 +57,171 @@ class CVState(BaseModel):
     is_complete: bool = False
 
 # Prompts for different sections
-PROMPTS = {
-    "personal_info": "Please provide your personal information (name, email, phone number, and address, separated by commas).",
-    "education": "Please provide details of your education (institution, degree, years attended, e.g., 'MIT, BS Computer Science, 2018-2022'). Add one entry at a time or type 'done' to move on.",
-    "work_experience": "Please provide details of your work experience (company, role, years, key responsibilities, e.g., 'Google, Software Engineer, 2022-2024, Developed backend systems'). Add one entry at a time or type 'done' to move on.",
-    "skills": "Please list your skills (e.g., Python, JavaScript, Project Management). Add one skill at a time or type 'done' to move on.",
-    "finalize": "Your CV is ready to be generated. Would you like to review the details, generate the CV, or make changes? (Type 'review', 'generate', or 'edit')."
+
+PROMPTS: Dict[str, Dict[str, str]] = {
+    "ar": {
+        "personal_info": "الرجاء تقديم معلوماتك الشخصية (الاسم، البريد الإلكتروني، رقم الهاتف، والعنوان، مفصولة بفواصل).",
+        "education": "الرجاء تقديم تفاصيل تعليمك (المؤسسة، الدرجة العلمية، سنوات الدراسة، مثال: 'جامعة الملك سعود، بكالوريوس علوم حاسب، 2018-2022'). أضف مدخلاً واحداً في كل مرة أو اكتب 'تم' للانتقال.",
+        "work_experience": "الرجاء تقديم تفاصيل خبرتك المهنية (الشركة، المنصب، السنوات، المسؤوليات الرئيسية، مثال: 'شركة التقنية، مهندس برمجيات، 2022-2024، تطوير أنظمة'). أضف مدخلاً واحداً في كل مرة أو اكتب 'تم' للانتقال.",
+        "skills": "الرجاء إدراج مهاراتك (مثال: بايثون، جافاسكريبت، إدارة المشاريع). أضف مهارة واحدة في كل مرة أو اكتب 'تم' للانتقال.",
+        "finalize": "سيرتك الذاتية جاهزة للإنشاء. هل تريد مراجعة التفاصيل، إنشاء السيرة الذاتية، أو إجراء تغييرات؟ (اكتب 'مراجعة'، 'إنشاء'، أو 'تعديل')."
+    },
+    "en": {
+        "personal_info": "Please provide your personal information (name, email, phone number, and address, separated by commas).",
+        "education": "Please provide details of your education (institution, degree, years attended, e.g., 'MIT, BS Computer Science, 2018-2022'). Add one entry at a time or type 'done' to move on.",
+        "work_experience": "Please provide details of your work experience (company, role, years, key responsibilities, e.g., 'Google, Software Engineer, 2022-2024, Developed backend systems'). Add one entry at a time or type 'done' to move on.",
+        "skills": "Please list your skills (e.g., Python, JavaScript, Project Management). Add one skill at a time or type 'done' to move on.",
+        "finalize": "Your CV is ready to be generated. Would you like to review the details, generate the CV, or make changes? (Type 'review', 'generate', or 'edit')."
+    }
 }
 
+
+# Add language-specific keywords
+KEYWORDS = {
+    "ar": {
+        "done": "تم",
+        "review": "مراجعة",
+        "generate": "إنشاء",
+        "edit": "تعديل"
+    },
+    "en": {
+        "done": "done",
+        "review": "review",
+        "generate": "generate",
+        "edit": "edit"
+    }
+}
 def generate_prompt(state: CVState) -> Dict[str, Any]:
     # If process_input already set a specific response (e.g., error message), use it.
     if state.chatbot_response:
         return {"chatbot_response": state.chatbot_response}
-
+    language = state.get("language", "ar")
     # Handle the special 'review' state
     if state.current_section == "review":
          # Reset section back to finalize after showing review
          return {
-             "chatbot_response": "Reviewing details:\n" + json.dumps(state.model_dump(exclude={'user_input', 'chatbot_response', 'is_complete', 'cv_output', 'current_section'}), indent=2) + "\n\n" + PROMPTS["finalize"],
+             "chatbot_response": "Reviewing details:\n" + json.dumps(state.model_dump(exclude={'user_input', 'chatbot_response', 'is_complete', 'cv_output', 'current_section'}), indent=2) + "\n\n" + PROMPTS[language]["finalize"],
              "current_section": "finalize"
          }
 
     # Otherwise, generate prompt based on the current section
-    prompt = PROMPTS.get(state.current_section)
+    prompt = PROMPTS[language].get(state.current_section)
     if not prompt: # Should not happen if logic is correct, but safety check
         return {"chatbot_response": "An unexpected error occurred."}
 
     return {"chatbot_response": prompt}
 
 # Node to prompt the user
-def prompt_user(state: CVState) -> Dict[str, Any]:
-    prompt = PROMPTS[state.current_section]
+def prompt_user(state: CVState) -> Dict[str, str]:
+    language = state.get("language", "ar")
+    prompt = PROMPTS[language][state.current_section]
     return {"user_input": prompt}
 
 def process_input(state: CVState) -> Dict[str, Any]:
     user_input = state.user_input
     current_section = state.current_section
+    language = state.language
     updates = {}
 
-    # Handle initial state or cases where user_input might be None/empty inappropriately
+    # Early return for None input
     if user_input is None:
-         # If it's the very start, let the next step generate the initial prompt
-         # Otherwise, maybe ask to repeat? For now, let's assume the flow handles it.
-         pass # Let generate_prompt handle the prompt based on current_section
-    elif current_section == "personal_info":
-        try:
-            parts = [part.strip() for part in user_input.split(",")]
-            if len(parts) < 4:
-                # Keep current section, let generate_prompt send an error message
-                updates["chatbot_response"] = "Invalid format. Please provide name, email, phone, and address separated by commas."
-                # Don't advance the section
-                updates["current_section"] = "personal_info"
-            else:
-                updates["personal_info"] = {
-                    "name": parts[0],
-                    "email": parts[1],
-                    "phone": parts[2],
-                    "address": parts[3]
-                }
-                updates["current_section"] = "education" # Advance section
-        except Exception as e:
-            updates["chatbot_response"] = "Invalid format. Please provide name, email, phone, and address separated by commas."
-            updates["current_section"] = "personal_info" # Don't advance
+        return updates
 
-    elif current_section in ["education", "work_experience"]:
-        if user_input.lower() == "done":
-            # Advance section
-            updates["current_section"] = "skills" if current_section == "education" else "finalize"
-        else:
-            # Add the entry
-            entry = {"details": user_input}
-            current_list = getattr(state, current_section, []) # Use getattr with default
-            updates[current_section] = current_list + [entry]
-            # Stay in the same section to allow adding more
-            updates["current_section"] = current_section
+    # Define section handlers as a dictionary of functions
+    section_handlers = {
+        "personal_info": lambda: handle_personal_info(user_input, language),
+        "education": lambda: handle_list_section(user_input, state.education, "education", "skills", language),
+        "work_experience": lambda: handle_list_section(user_input, state.work_experience, "work_experience", "finalize", language),
+        "skills": lambda: handle_list_section(user_input, state.skills, "skills", "finalize", language),
+        "finalize": lambda: handle_finalize(user_input, state, language)
+    }
 
-    elif current_section == "skills":
-        if user_input.lower() == "done":
-            updates["current_section"] = "finalize" # Advance section
-        else:
-            # Add the skill
-            updates["skills"] = state.skills + [user_input]
-             # Stay in the same section to allow adding more
-            updates["current_section"] = current_section
+    # Get and execute the appropriate handler
+    handler = section_handlers.get(current_section)
+    if handler:
+        updates.update(handler())
 
-    elif current_section == "finalize":
-        if user_input.lower() == "generate":
-            cv_content = generate_cv(state) # generate_cv needs the current state *before* updates
-            # We need to merge the potential updates with the full state to generate CV
-            temp_state_dict = state.dict()
-            temp_state_dict.update(updates) # Apply updates for generation if needed
-            cv_content = generate_cv(CVState(**temp_state_dict))
-            updates["cv_output"] = cv_content
-            updates["is_complete"] = True
-            # No next section needed
-        elif user_input.lower() == "review":
-            # Let generate_prompt handle showing the review
-            updates["current_section"] = "review" # Use a temporary section for review
-        elif user_input.lower() == "edit":
-            updates["current_section"] = "personal_info" # Go back to start
-        else:
-            # Ask again
-            updates["chatbot_response"] = "Please type 'review', 'generate', or 'edit'."
-            updates["current_section"] = "finalize" # Stay here
-
-    # If chatbot_response wasn't set by error handling, clear it
+    # Clear chatbot_response if not set by handlers
     if "chatbot_response" not in updates:
-         updates["chatbot_response"] = None
+        updates["chatbot_response"] = None
 
-    # Return only the changes
     return updates
 
+def handle_personal_info(user_input: str, language: str) -> Dict[str, Any]:
+    try:
+        parts = [part.strip() for part in user_input.split(",")]
+        if len(parts) < 4:
+            error_msg = {
+                "ar": "صيغة غير صحيحة. الرجاء تقديم الاسم والبريد الإلكتروني ورقم الهاتف والعنوان مفصولة بفواصل.",
+                "en": "Invalid format. Please provide name, email, phone, and address separated by commas."
+            }
+            return {
+                "chatbot_response": error_msg[language],
+                "current_section": "personal_info"
+            }
+        
+        return {
+            "personal_info": {
+                "name": parts[0],
+                "email": parts[1],
+                "phone": parts[2],
+                "address": parts[3]
+            },
+            "current_section": "education"
+        }
+    except Exception:
+        error_msg = {
+            "ar": "صيغة غير صحيحة. الرجاء تقديم الاسم والبريد الإلكتروني ورقم الهاتف والعنوان مفصولة بفواصل.",
+            "en": "Invalid format. Please provide name, email, phone, and address separated by commas."
+        }
+        return {
+            "chatbot_response": error_msg[language],
+            "current_section": "personal_info"
+        }
+
+def handle_list_section(user_input: str, current_list: List, current_section: str, next_section: str, language: str) -> Dict[str, Any]:
+    if user_input.lower() == KEYWORDS[language]["done"]:
+        return {"current_section": next_section}
+    
+    if isinstance(current_list, list):
+        if current_section == "skills":
+            return {
+                "skills": current_list + [user_input],
+                "current_section": current_section
+            }
+        else:
+            return {
+                current_section: current_list + [{"details": user_input}],
+                "current_section": current_section
+            }
+    return {"current_section": current_section}
+
+def handle_finalize(user_input: str, state: CVState, language: str) -> Dict[str, Any]:
+    actions = {
+        KEYWORDS[language]["generate"]: lambda: handle_generate(state),
+        KEYWORDS[language]["review"]: lambda: {"current_section": "review"},
+        KEYWORDS[language]["edit"]: lambda: {"current_section": "personal_info"}
+    }
+
+    handler = actions.get(user_input.lower())
+    if not handler:
+        error_msg = {
+            "ar": "الرجاء كتابة 'مراجعة'، 'إنشاء'، أو 'تعديل'.",
+            "en": "Please type 'review', 'generate', or 'edit'."
+        }
+        return {
+            "chatbot_response": error_msg[language],
+            "current_section": "finalize"
+        }
+    
+    return handler()
+
+def handle_generate(state: CVState) -> Dict[str, Any]:
+    cv_content = generate_cv(state)
+    return {
+        "cv_output": cv_content,
+        "is_complete": True
+    }
 
 # Function to generate the CV
 def generate_cv(state: CVState) -> str:
@@ -216,75 +285,11 @@ def load_state(session_id: str) -> Optional[CVState]:
         return CVState(**json.loads(state_json))
     return None
 
-# HTML for the frontend
-html = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>CV Builder Chatbot</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        #chatbox { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; }
-        #input { width: 80%; padding: 5px; }
-        button { padding: 5px 10px; }
-    </style>
-</head>
-<body>
-    <h1>CV Builder Chatbot</h1>
-    <div id="chatbox"></div>
-    <input id="input" type="text" placeholder="Type your response here..." />
-    <button onclick="sendMessage()">Send</button>
-
-    <script>
-        let sessionId = localStorage.getItem("cv_session_id");
-        if (!sessionId) {
-            sessionId = crypto.randomUUID();
-            localStorage.setItem("cv_session_id", sessionId);
-        }
-
-        const ws = new WebSocket("ws://" + window.location.host + "/ws/cv_builder");
-        const chatbox = document.getElementById("chatbox");
-        const input = document.getElementById("input");
-
-        ws.onopen = function() {
-            // Send session ID on connect
-            ws.send(JSON.stringify({ session_id: sessionId, text: "" }));
-        };
-
-        ws.onmessage = function(event) {
-            const message = JSON.parse(event.data);
-            const p = document.createElement("p");
-            p.innerHTML = message.sender + ": " + message.text;
-            chatbox.appendChild(p);
-            chatbox.scrollTop = chatbox.scrollHeight;
-        };
-
-        function sendMessage() {
-            const text = input.value.trim();
-            if (text) {
-                ws.send(JSON.stringify({ session_id: sessionId, text: text }));
-                const p = document.createElement("p");
-                p.innerHTML = "You: " + text;
-                chatbox.appendChild(p);
-                chatbox.scrollTop = chatbox.scrollHeight;
-                input.value = "";
-            }
-        }
-
-        input.addEventListener("keypress", function(event) {
-            if (event.key === "Enter") {
-                sendMessage();
-            }
-        });
-    </script>
-</body>
-</html>
-"""
-
 # Serve the frontend
 @app.get("/")
 async def get():
-    return HTMLResponse(html)
+    return HTMLResponse(HTML)
+
 
 # WebSocket endpoint
 @app.websocket("/ws/cv_builder")
@@ -297,8 +302,13 @@ async def websocket_endpoint(websocket: WebSocket):
         # Receive initial message with session ID
         data = await websocket.receive_json()
         session_id = data.get("session_id")
+        language = data.get("language", "ar")
         if not session_id:
-            await websocket.send_json({"sender": "Chatbot", "text": "Error: No session ID provided."})
+            await websocket.send_json({
+                "sender": "Chatbot",
+                "text": "خطأ: لم يتم تقديم معرف الجلسة." if language == "ar" else "Error: No session ID provided.",
+                "language": language
+            })
             await websocket.close()
             return
 
@@ -306,15 +316,16 @@ async def websocket_endpoint(websocket: WebSocket):
         state = load_state(session_id)
         print(f"state: {state}")
         if not state:
-            state = CVState()
+            state = CVState(language=language)
             # Manually set the initial prompt for the very first interaction
-            state.chatbot_response = PROMPTS[state.current_section]
+            state.chatbot_response = PROMPTS[language][state.current_section]
             save_state(session_id, state)
         elif not state.chatbot_response and not state.is_complete:
             # If state exists but has no pending response (e.g., server restarted), generate prompt
             print("State loaded, generating prompt for current section:", state.current_section)
             # We can call generate_prompt directly here or invoke a minimal graph
             prompt_state = generate_prompt(state)
+            
             state = CVState(**{**state.dict(), **prompt_state}) # Update state with the prompt
             save_state(session_id, state)
 
@@ -400,7 +411,7 @@ def is_port_in_use(port: int) -> bool:
     import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind(('', port))
+            s.bind(('127.0.0.1', port))
             s.close()
             return False
         except OSError:
@@ -417,7 +428,7 @@ if __name__ == "__main__":
     try:
         port = find_available_port()
         print(f"Starting server on port {port}")
-        uvicorn.run(app, host="0.0.0.0", port=port)
+        uvicorn.run(app, host="127.0.0.1", port=port)
     except Exception as e:
         print(f"Failed to start server: {e}")
         exit(1)
