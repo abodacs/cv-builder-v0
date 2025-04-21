@@ -1,5 +1,15 @@
-from typing import List, Dict, Any
+from typing import Any
+
 from .education import handle_list_section
 
-def handle_experience(user_input: str, current_list: List[Dict], language: str) -> Dict[str, Any]:
-    return handle_list_section(user_input, current_list, "work_experience", "finalize", language)
+
+def handle_experience(
+    user_input: str | None, current_list: list[dict], language: str
+) -> dict[str, Any]:
+    return handle_list_section(
+        (user_input or "").strip(),
+        current_list,
+        "work_experience",
+        "finalize",
+        language,
+    )

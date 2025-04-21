@@ -1,8 +1,14 @@
-from typing import Dict, Any, Optional
+from typing import Any
+
 from app.core.constants import PERSONAL_INFO_FIELDS
 
-def handle_personal_info(user_input: str, current_personal_info: Dict[str, str], current_field: Optional[str]) -> Dict[str, Any]:
-    updates: Dict[str, Any] = {}
+
+def handle_personal_info(
+    user_input: str | None,
+    current_personal_info: dict[str, str],
+    current_field: str | None,
+) -> dict[str, Any]:
+    updates: dict[str, Any] = {}
 
     if not current_field:
         updates["current_field"] = PERSONAL_INFO_FIELDS[0]
@@ -10,7 +16,7 @@ def handle_personal_info(user_input: str, current_personal_info: Dict[str, str],
         return updates
 
     updated_personal_info = current_personal_info.copy()
-    updated_personal_info[current_field] = user_input.strip()
+    updated_personal_info[current_field] = (user_input or "").strip()
     updates["personal_info"] = updated_personal_info
 
     try:

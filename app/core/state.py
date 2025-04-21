@@ -1,22 +1,51 @@
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from typing import ClassVar
+
+from pydantic import BaseModel, Field, field_validator
+
 
 class CVState(BaseModel):
     """State model for CV builder conversation."""
+
     language: str = "ar"  # Default to Arabic
-    personal_info: Dict[str, str] = Field(default_factory=dict)
-    education: List[Dict] = Field(default_factory=list)
-    work_experience: List[Dict] = Field(default_factory=list)
-    skills: List[str] = Field(default_factory=list)
+    personal_info: dict[str, str] = Field(default_factory=dict)
+    education: list[dict] = Field(default_factory=list)
+    work_experience: list[dict] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
     current_section: str = "personal_info"
-    current_field: Optional[str] = None
-    user_input: Optional[str] = None
-    chatbot_response: Optional[str] = None
-    cv_output: Optional[str] = None
+    current_field: str | None = None
+    user_input: str | None = None
+    chatbot_response: str | None = None
+    cv_output: str | None = None
     is_complete: bool = False
+
+    @field_validator("language")
+    def validate_language(self, v: str) -> str:
+        valid_languages = ["en", "ar"]
+        if v not in valid_languages:
+            raise ValueError(
+                f"Invalid language: {v}. Must be one of: {', '.join(valid_languages)}"
+            )
+        return v
+
+    @field_validator("current_section")
+    def validate_section(self, v: str) -> str:
+        valid_sections = [
+            "personal_info",
+            "education",
+            "work_experience",
+            "skills",
+            "finalize",
+            "review",
+        ]
+        if v not in valid_sections:
+            raise ValueError(
+                f"Invalid section: {v}. Must be one of: {', '.join(valid_sections)}"
+            )
+        return v
 
     class Config:
         """Pydantic model configuration."""
-        json_encoders = {
+
+        json_encoders: ClassVar[dict] = {
             # Add any custom JSON encoders if needed
         }

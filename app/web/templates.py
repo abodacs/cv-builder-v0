@@ -125,8 +125,8 @@ h1 {
     margin-inline-end: 0;     /* Anchor to the end */
     /* Bubble tail on the logical 'end-end' corner (bottom-right in LTR, bottom-left in RTL) */
     border-end-end-radius: var(--bubble-tail-radius);
-    direction: ltr; 
-    text-align: start; 
+    direction: ltr;
+    text-align: start;
 }
 
 /* Bot Messages - Align to the START of the inline direction */
@@ -240,7 +240,7 @@ h1 {
 
 </style>
 """
-SCRTIPT = """ 
+SCRTIPT = """
  <script>
     let sessionId = localStorage.getItem("cv_session_id");
     let currentLanguage = localStorage.getItem("cv_language") || "ar"; // Default to Arabic
@@ -284,9 +284,9 @@ SCRTIPT = """
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws/cv_builder`;
-        
+
         ws = new WebSocket(wsUrl);
-        
+
         ws.onopen = () => {
             console.log('WebSocket connected successfully');
             reconnectAttempts = 0;
@@ -295,16 +295,16 @@ SCRTIPT = """
                 language: document.getElementById('language').value
             }));
         };
-        
+
         ws.onclose = (event) => {
             console.log('WebSocket closed:', event.code, event.reason);
             scheduleReconnect();
         };
-        
+
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
         };
-        
+
         ws.onmessage = function(event) {
             try {
                 const message = JSON.parse(event.data);
