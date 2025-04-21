@@ -411,7 +411,7 @@ def is_port_in_use(port: int) -> bool:
     import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind(('', port))
+            s.bind(('127.0.0.1', port))
             s.close()
             return False
         except OSError:
@@ -428,7 +428,7 @@ if __name__ == "__main__":
     try:
         port = find_available_port()
         print(f"Starting server on port {port}")
-        uvicorn.run(app, host="0.0.0.0", port=port)
+        uvicorn.run(app, host="127.0.0.1", port=port)
     except Exception as e:
         print(f"Failed to start server: {e}")
         exit(1)

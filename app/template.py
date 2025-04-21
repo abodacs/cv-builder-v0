@@ -53,6 +53,8 @@ HTML = """
     <script>
         let sessionId = localStorage.getItem("cv_session_id");
         let currentLanguage = localStorage.getItem("cv_language") || "ar";
+        const chatbox = document.getElementById("chatbox");
+        const input = document.getElementById("input");
         
         if (!sessionId) {
             sessionId = window.crypto.randomUUID();
@@ -64,8 +66,6 @@ HTML = """
         updateDirection(currentLanguage);
 
         const ws = new WebSocket("ws://" + window.location.host + "/ws/cv_builder");
-        const chatbox = document.getElementById("chatbox");
-        const input = document.getElementById("input");
 
         function updateDirection(lang) {
             document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
