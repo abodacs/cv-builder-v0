@@ -13,21 +13,21 @@ A modern, real-time CV builder that leverages LangGraph and FastAPI to create pr
 
 ## ✨ Features
 
-- 🤖 Interactive chatbot interface for CV creation  
-- 📝 Step-by-step guided process  
-- 🔄 Real-time state management with Redis  
-- 📊 LangGraph-powered conversation flow  
-- 📄 PDF generation with ReportLab  
-- 🌐 WebSocket-based real-time communication  
+- 🤖 Interactive chatbot interface for CV creation
+- 📝 Step-by-step guided process
+- 🔄 Real-time state management with Redis
+- 📊 LangGraph-powered conversation flow
+- 📄 PDF generation with ReportLab
+- 🌐 WebSocket-based real-time communication
 
 ## 🏗️ Architecture
 
-- **Frontend:** Pure JavaScript with WebSocket communication  
-- **Backend:** FastAPI + WebSockets  
-- **State Management:** Redis  
-- **PDF Generation:** ReportLab  
-- **Conversation Flow:** LangGraph  
-- **Language Model:** OpenAI GPT-4  
+- **Frontend:** Pure JavaScript with WebSocket communication
+- **Backend:** FastAPI + WebSockets
+- **State Management:** Redis
+- **PDF Generation:** ReportLab
+- **Conversation Flow:** LangGraph
+- **Language Model:** OpenAI GPT-4
 
 ## 🚀 Quick Start
 
@@ -36,7 +36,7 @@ A modern, real-time CV builder that leverages LangGraph and FastAPI to create pr
    git clone <repository-url>
    cd cv-builder-v0
    ```
-2. **Install dependencies:**  
+2. **Install dependencies:**
    (Using uv – Ultra-fast Python package installer)
    ```bash
    uv sync

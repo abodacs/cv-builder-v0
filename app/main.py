@@ -1,8 +1,10 @@
+import os
+
 import uvicorn
 from fastapi.staticfiles import StaticFiles
-from app.web.app import create_app
+
 from app.core.config import Config
-import os
+from app.web.app import create_app
 
 # Create static directory if it doesn't exist
 if not os.path.exists(Config.STATIC_DIR):
@@ -12,17 +14,20 @@ if not os.path.exists(Config.STATIC_DIR):
 app = create_app()
 app.mount("/static", StaticFiles(directory=Config.STATIC_DIR), name="static")
 
+
 def find_available_port(start_port: int = 8000, max_port: int = 9000) -> int:
     """Find an available port between start_port and max_port."""
     import socket
+
     for port in range(start_port, max_port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
-                s.bind(('127.0.0.1', port))
+                s.bind(("127.0.0.1", port))
                 return port
             except OSError:
                 continue
     raise RuntimeError(f"No available ports found between {start_port} and {max_port}")
+
 
 if __name__ == "__main__":
     try:
