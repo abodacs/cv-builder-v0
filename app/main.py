@@ -396,5 +396,28 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         await websocket.close()
 
+def is_port_in_use(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('', port))
+            s.close()
+            return False
+        except OSError:
+            return True
+
+def find_available_port(start_port: int = 8000, max_port: int = 9000) -> int:
+    """Find an available port between start_port and max_port."""
+    for port in range(start_port, max_port):
+        if not is_port_in_use(port):
+            return port
+    raise RuntimeError(f"No available ports found between {start_port} and {max_port}")
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    try:
+        port = find_available_port()
+        print(f"Starting server on port {port}")
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    except Exception as e:
+        print(f"Failed to start server: {e}")
+        exit(1)

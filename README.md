@@ -35,7 +35,7 @@ A modern, real-time CV builder that leverages LangGraph and FastAPI to create pr
 1. **Clone the repository:**
    ```bash
    git clone <repository-url>
-   cd cv-builder
+   cd cv-builder-v0
    ```
 2. **Install dependencies:**  
    (Using uv – Ultra-fast Python package installer)
