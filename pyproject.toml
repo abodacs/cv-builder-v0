@@ -3,7 +3,7 @@ name = "test-cv"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]>=0.115.12",
     "langchain-openai>=0.3.14",
@@ -19,6 +19,9 @@ test = [
     "pytest-asyncio>=0.23.0",
     "pytest-mock>=3.12.0",
     "httpx>=0.24.0",
+    "pre-commit>=3.6.0",
+    "mypy>=1.8.0",
+    "setuptools>=69.0.0",
 ]
 
 [tool.pytest.ini_options]
@@ -43,13 +46,13 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-# Enable pycodestyle ('E'), pyflakes ('F'), 
+# Enable pycodestyle ('E'), pyflakes ('F'),
 # and import sorting ('I')
-select = ["E", "F", "I"]
-ignore = []
+select = ["E", "F", "I", "B", "W", "D"]
+ignore = ["D100", "D104"]
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
-fixable = ["A", "B", "C", "D", "E", "F", "I"]
+fixable = ["A", "B", "C", "D", "E", "F", "I", "W"]
 unfixable = []
 
 # Exclude a variety of commonly ignored directories.
@@ -83,9 +86,20 @@ line-length = 88
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-# Assume Python 3.12
-target-version = "py12"
+# Assume Python 3.11
+target-version = "py311"
 
 [tool.ruff.mccabe]
 # Unlike Flake8, default to a complexity level of 10.
 max-complexity = 10
+
+[tool.ruff.per-file-ignores]
+"tests/*" = ["D103"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+ignore_missing_imports = true
