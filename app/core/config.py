@@ -14,8 +14,9 @@ class Config:
     REDIS_TTL = int(os.getenv("REDIS_TTL", "3600"))  # 1 hour default
 
     # OpenAI Configuration
+    OPENAI_API_BASE_URL = os.getenv("OPENAI_API_BASE_URL", "https://api.openai.com/v1")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4-mini")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
     # PDF Configuration
     STATIC_DIR = "static"

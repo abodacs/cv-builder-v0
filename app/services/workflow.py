@@ -1,7 +1,9 @@
 import json
+import logging
 from typing import Any
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from app.core.constants import PERSONAL_INFO_FIELDS, PROMPTS
 from app.core.state import CVState
@@ -10,12 +12,18 @@ from app.handlers.experience import handle_experience
 from app.handlers.finalize import handle_finalize
 from app.handlers.personal_info import handle_personal_info
 from app.handlers.skills import handle_skills
+from app.services.validation import DataValidator
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-def process_input(state: CVState) -> dict[str, Any]:
+async def process_input(state: CVState) -> dict[str, Any]:
     """Process user input based on current state."""
     if not state.user_input or not state.user_input.strip():
         return {"user_input": None, "chatbot_response": None}
+
+    print(f"Processing input: {state.user_input} for section: {state.current_section}")
 
     handlers = {
         "personal_info": lambda: handle_personal_info(
@@ -40,9 +48,51 @@ def process_input(state: CVState) -> dict[str, Any]:
 
     try:
         updates = handler()
+        # Add validation step
+        validator = DataValidator()
+        strict_mode = state.current_section in {"personal_info", "education"}
+        print("current state:", state)
+        print("current updates:", updates)
+        is_valid, message = True, None
+        if state.current_section != updates.get(
+            "current_section", state.current_section
+        ):
+            is_valid, message = await validator.validate_cv(
+                state.current_section, state.__dict__, strict=strict_mode
+            )
+            logger.info(
+                f"Validation result for {state.current_section}: {is_valid}, Message: {message}"
+            )
+
+        if not is_valid:
+            # Add validation error to state updates
+            updates.update(
+                {
+                    "chatbot_response": (
+                        f"Please revise your input:\n"
+                        f"{message}\n\n"
+                        f"Current section: {state.current_section}"
+                    ),
+                    "user_input": None,
+                    "validation_errors": {state.current_section: message},
+                }
+            )
+            logger.warning(f"Validation failed for {state.current_section}: {message}")
+            return updates
+        # Clear any previous validation errors for this section
+        updates["validation_errors"] = {
+            k: v
+            for k, v in state.validation_errors.items()
+            if k != state.current_section
+        }
         updates["user_input"] = None
         return updates
     except Exception as e:
+        # Handle any exceptions that occur during processing
+        import traceback
+
+        traceback.print_exc()  # Print full traceback to server console for debugging
+        # Optionally, you can log the error or take other actions
         print(f"Error in {state.current_section} handler: {e}")
         return {
             "chatbot_response": "An error occurred. Please try again.",
@@ -119,7 +169,7 @@ def generate_prompt(state: CVState) -> dict[str, Any]:
     return updates
 
 
-def create_workflow() -> StateGraph:
+def create_workflow() -> CompiledStateGraph:
     """Create and configure the workflow graph."""
     workflow = StateGraph(CVState)
 

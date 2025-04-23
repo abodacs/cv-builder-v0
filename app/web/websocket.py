@@ -69,7 +69,7 @@ async def handle_websocket(websocket: WebSocket) -> None:
         # The process_input node will do nothing (no user input),
         # then generate_prompt will create the first question.
         print(f"[Session: {session_id}] Running graph for initial prompt...")
-        initial_state_dict = graph.invoke(
+        initial_state_dict = await graph.ainvoke(
             state.dict(), config={"recursion_limit": 5}
         )  # Limit depth for safety
         state = CVState(**initial_state_dict)
@@ -151,7 +151,7 @@ async def handle_websocket(websocket: WebSocket) -> None:
             print(
                 f"[Session: {session_id}] Invoking graph. Section: {current_state.current_section}, Field: {current_state.current_field}"
             )
-            result_state_dict = graph.invoke(
+            result_state_dict = await graph.ainvoke(
                 current_state.dict(), config={"recursion_limit": 50}
             )
             state = CVState(**result_state_dict)  # Update local state variable
@@ -159,8 +159,6 @@ async def handle_websocket(websocket: WebSocket) -> None:
             print(
                 f"[Session: {session_id}] Graph finished. Next section: {state.current_section}, Next field: {state.current_field}, Complete: {state.is_complete}"
             )
-            # print(f"[Session: {session_id}] Chatbot response: {state.chatbot_response}")
-            # print(f"[Session: {session_id}] CV Output: {state.cv_output}")
 
             # Save the *new* state returned by the graph
             redis_store.save_state(session_id, state)
