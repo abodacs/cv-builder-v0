@@ -283,7 +283,7 @@ SCRTIPT = """
 
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws/cv_builder`;
+        const wsUrl = `${protocol}//${window.location.host}/ws/cv_builder_v2`;
 
         ws = new WebSocket(wsUrl);
 

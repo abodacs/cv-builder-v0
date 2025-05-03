@@ -1,13 +1,19 @@
+import logging
 from contextlib import suppress
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from app.core.constants import PERSONAL_INFO_FIELDS
 from app.core.state import CVState
 from app.services.redis_store import RedisStore
 from app.services.workflow import graph
+from app.services.workflow_v2 import ChatService
 
+chat_service = ChatService()
 redis_store = RedisStore()
+
+
+logger = logging.getLogger(__name__)
 
 
 async def handle_websocket(websocket: WebSocket) -> None:
@@ -203,6 +209,105 @@ async def handle_websocket(websocket: WebSocket) -> None:
         await websocket.close()
 
 
+async def handle_websocket_v2(websocket: WebSocket) -> None:
+    """Process a chat message"""
+    await websocket.accept()
+
+    session_id = None
+
+    try:
+        # Receive initial message with session ID
+        data = await websocket.receive_json()
+        session_id = data.get("session_id")
+        message = data.get("text", "").strip()
+        language = data.get("language", "ar")
+        if not session_id:
+            await websocket.send_json(
+                {
+                    "sender": "Chatbot",
+                    "text": "خطأ: لم يتم تقديم معرف الجلسة."
+                    if language == "ar"
+                    else "Error: No session ID provided.",
+                    "language": language,
+                }
+            )
+            await websocket.close()
+            return
+
+        logger.info(
+            f"[Session: {session_id}] Connection established. Language: {language}"
+        )
+
+        # === Message Loop ===
+        while True and session_id:
+            data = await websocket.receive_json()
+            received_session_id = data.get("session_id")
+            message = data.get("text", "").strip()
+
+            if received_session_id != session_id:
+                await websocket.send_json(
+                    {"sender": "Chatbot", "text": "Error: Session ID mismatch."}
+                )
+                continue  # Or close
+
+            if not message:
+                # Re-send the last prompt if input is empty
+                await websocket.send_json(
+                    {"sender": "Chatbot", "text": "Please provide a response."}
+                )
+                continue
+
+            logger.debug(f"[Session: {session_id}] Received message: {message[:80]}...")
+            response_to_send = await chat_service.process_message(
+                message=message, user_token="abdullah_123", conversation_id=session_id
+            )
+            print(
+                f"[Session: {session_id}] Processed message. Response: {response_to_send!s}..."
+            )
+            if response_to_send:
+                await websocket.send_json(
+                    {
+                        "sender": "Chatbot",
+                        "text": response_to_send.response
+                        if response_to_send
+                        else "No response generated.",
+                    }
+                )
+            else:
+                await websocket.send_json(
+                    {"sender": "Chatbot", "text": "No response generated."}
+                )
+    except WebSocketDisconnect:
+        logger.info(f"[Session: {session_id}] Client disconnected")
+    except ValueError as e:
+        logger.warning(f"[Session: {session_id}] Invalid input: {e!s}")
+        await websocket.send_json(
+            {"sender": "Chatbot", "text": f"Invalid input: {e!s}"}
+        )
+    except RuntimeError as e:
+        if "Cannot call 'send' once a close message has been sent" in str(e):
+            logger.warning(
+                f"RuntimeError caught for {session_id}: {e} - likely already disconnected."
+            )
+        else:
+            logger.error(f"Unhandled RuntimeError for {session_id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"[Session: {session_id}] Unexpected error", exc_info=e)
+        print(f"WebSocket Error (Session: {session_id}): {e}")
+        import traceback
+
+        traceback.print_exc()  # Print full traceback to server console for debugging
+        with suppress(Exception):
+            await websocket.send_json(
+                {"sender": "Chatbot", "text": "An server error occurred"}
+            )
+        await websocket.close()
+
+    finally:
+        await websocket.close()
+
+
 def register_websocket_handler(app: FastAPI) -> None:
     """Register WebSocket endpoint with FastAPI app."""
     app.websocket("/ws/cv_builder")(handle_websocket)
+    app.websocket("/ws/cv_builder_v2")(handle_websocket_v2)

@@ -13,6 +13,7 @@ from langchain_core.runnables import (
 )
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -20,9 +21,11 @@ from langgraph.store.redis.aio import AsyncRedisStore
 from pydantic import SecretStr
 
 from app.core.config import Config
-from app.core.constants import RESUME_SECTIONS
+from app.core.constants import PROMPT, RESUME_SECTIONS
 from app.core.schemas import ChatResponse
 from app.tools.resume_tools import resume_tools
+
+REDIS_URI = f"redis://{Config.REDIS_HOST}:{Config.REDIS_PORT}"
 
 
 def handle_tool_error(state: dict) -> dict[str, list[ToolMessage]]:
@@ -89,6 +92,7 @@ class ChatService:
     def __init__(self) -> None:
         # Initialize the LLM and tools
         self.llm = ChatOpenAI(
+            model=Config.OPENAI_MODEL,
             api_key=SecretStr(Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else None,
             base_url=Config.OPENAI_API_BASE_URL,
         )
@@ -98,22 +102,15 @@ class ChatService:
             [
                 (
                     "system",
-                    "You are Clara - an AI assistant that helps users build their resume. "
-                    "You will answer only on questions related to the resume.\n"
-                    "You need to fill each section of the resume one by one.\n"
-                    "You will use the available tools to send a section of the resume to the server.\n"
-                    "You will not use the same tool more than once.\n"
-                    "You will not ask the user to fill the same section more than once.\n"
-                    "You will always ask the user to fill the next missing section of the resume.\n"
-                    "Confirm with the user before saving each section.\n"
-                    "Sections are "
+                    PROMPT
+                    + "\n\n"
+                    + "Sections are "
                     + ", ".join(section for section in RESUME_SECTIONS)
                     + ".\n",
                 ),
                 ("placeholder", "{messages}"),
             ]
         )
-
         # Create the assistant runnable
         assistant_runnable = self.prompt | self.llm.bind_tools(self.tools)
 
@@ -137,7 +134,15 @@ class ChatService:
 
         if conversation_id is None:
             conversation_id = str(uuid.uuid4())
-
+        print("conversation_id", conversation_id)
+        print("user_token", user_token)
+        print("message", message)
+        # Validate the message
+        if not isinstance(message, str) or not message.strip():
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="Message must be a non-empty string.",
+            )
         try:
             # Create config for this invocation
             config: RunnableConfig = {
@@ -151,25 +156,41 @@ class ChatService:
                 "default_ttl": 60,  # Default TTL in minutes
                 "refresh_on_read": True,  # Refresh TTL when store entries are read
             }
-            async with AsyncRedisStore.from_conn_string(
-                f"redis://{Config.REDIS_HOST}:{Config.REDIS_PORT}", ttl=ttl_config
-            ) as checkpointer:
-                await checkpointer.setup()
-                graph = self.builder.compile(checkpointer=checkpointer)
+            # Create a Redis store with the specified TTL configuration
+            async with AsyncRedisSaver.from_conn_string(REDIS_URI) as checkpointer:
+                print("checkpointer", checkpointer)
+                await checkpointer.asetup()
 
-                # Get response from agent
-                response = await graph.ainvoke(
-                    {"messages": [("user", message)]}, config
-                )
+                async with AsyncRedisStore.from_conn_string(
+                    REDIS_URI, ttl=ttl_config
+                ) as store:
+                    await store.setup()
+                    # Add the conversation ID to the checkpointer
+                    graph = self.builder.compile(checkpointer=checkpointer)
+                    # Get response from agent
+                    response = await graph.ainvoke(
+                        {"messages": [("user", message)]}, config
+                    )
 
-                # Extract the final answer from the response
-                # LangGraph agents return the last message in the messages list
-                final_response = response["messages"][-1].content
+                    # Extract the final answer from the response
+                    # LangGraph agents return the last message in the messages list
+                    final_response = response["messages"][-1].content
+                    print("final_response", final_response)
+                    # Check if the response is empty
+                    if not final_response:
+                        raise HTTPException(
+                            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                            detail="Empty response from the assistant.",
+                        )
+                    # Check if the response is a list
+                    if isinstance(final_response, list):
+                        # If it's a list, extract the first element
+                        final_response = final_response[0].get("text", "")
 
-                return ChatResponse(
-                    response=final_response,
-                    conversation_id=conversation_id,
-                )
+                    return ChatResponse(
+                        response=final_response,
+                        conversation_id=conversation_id,
+                    )
 
         except Exception as e:
             print(e)
