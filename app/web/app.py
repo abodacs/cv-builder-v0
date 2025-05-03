@@ -56,7 +56,7 @@ def create_app() -> FastAPI:
     ) -> JSONResponse | Any:
         """Catch exceptions and log them."""
         try:
-            response = await call_next(request)
+            response = await call_next(request)  # type: ignore
             return response
         # Note: WebSocket upgrade errors might not be caught here easily
         # as they aren't standard HTTP request/response cycles after the initial upgrade.

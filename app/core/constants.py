@@ -36,3 +36,6 @@ KEYWORDS = {
     "ar": {"done": "تم", "review": "مراجعة", "generate": "إنشاء", "edit": "تعديل"},
     "en": {"done": "done", "review": "review", "generate": "generate", "edit": "edit"},
 }
+
+
+RESUME_SECTIONS = ["personal_info", "work_experience", "education"]

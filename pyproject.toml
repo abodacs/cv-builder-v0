@@ -10,6 +10,7 @@ dependencies = [
     "langgraph>=0.3.31",
     "redis>=5.2.1",
     "reportlab>=4.4.0",
+    "anggraph-checkpoint-redis>=0.0.4",
 ]
 
 [project.optional-dependencies]
