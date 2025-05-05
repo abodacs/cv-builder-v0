@@ -24,11 +24,20 @@ class RedisStore:
         try:
             state_json = self.client.get(f"cv_session:{session_id}")
             if not state_json:
-                raise ValueError(f"No state found for session: {session_id}")
+                return CVState()
             state = CVState.model_validate_json(state_json)
             assert isinstance(state, CVState)  # Type guard for mypy
             return state
         except redis.exceptions.RedisError as err:
             raise RuntimeError(f"Failed to load state: {err}") from err
         except ValueError as err:
-            raise ValueError(str(err)) from err
+            # raise ValueError(str(err)) from err
+            raise ValueError(f"Invalid state data: {err}") from err
+        except Exception as err:
+            raise RuntimeError(f"Unexpected error: {err}") from err
+        finally:
+            # Optional: Close the Redis connection if needed
+            self.client.close()
+
+
+#     app.add_websocket_route("/ws", websocket_handler)

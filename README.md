@@ -2,6 +2,7 @@
 
 A modern, real-time CV builder that leverages LangGraph and FastAPI to create professional CVs through an intuitive chat interface.
 
+
 ## 📖 Table of Contents
 - [Features](#features)
 - [Architecture](#architecture)
@@ -10,6 +11,15 @@ A modern, real-time CV builder that leverages LangGraph and FastAPI to create pr
 - [Tech Stack](#tech-stack)
 - [Contributing](#contributing)
 - [License](#license)
+
+## 🎯 Define the Scope and Requirements
+
+- **Objective:** Automate resume section generation by gathering user info via a conversational interface.
+- **Input:** User's text responses during the conversation.
+- **Output:** Structured data for standard resume sections (e.g., Personal Info, Work Experience, Education, Skills).
+- **Target Audience:** Job seekers, students, professionals looking to create or update their CVs.
+- **Key Features:** Conversational interaction using NLU, guided information gathering, data structuring, context tracking, basic validation/clarification.
+
 
 ## ✨ Features
 

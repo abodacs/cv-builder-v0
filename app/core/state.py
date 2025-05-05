@@ -7,16 +7,23 @@ class CVState(BaseModel):
     """State model for CV builder conversation."""
 
     language: str = "ar"  # Default to Arabic
-    personal_info: dict[str, str] = Field(default_factory=dict)
+    personal_info: dict[str, str] = Field(
+        default_factory=dict, description="User's personal information"
+    )
     education: list[dict] = Field(default_factory=list)
     work_experience: list[dict] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
+    validation_errors: dict[str, str] = Field(default_factory=dict)
     current_section: str = "personal_info"
     current_field: str | None = None
     user_input: str | None = None
     chatbot_response: str | None = None
     cv_output: str | None = None
     is_complete: bool = False
+
+    @property
+    def is_valid(self) -> bool:
+        return len(self.validation_errors) == 0
 
     @field_validator("language")
     @classmethod
