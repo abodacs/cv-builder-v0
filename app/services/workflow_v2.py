@@ -134,9 +134,6 @@ class ChatService:
 
         if conversation_id is None:
             conversation_id = str(uuid.uuid4())
-        print("conversation_id", conversation_id)
-        print("user_token", user_token)
-        print("message", message)
         # Validate the message
         if not isinstance(message, str) or not message.strip():
             raise HTTPException(
@@ -158,7 +155,6 @@ class ChatService:
             }
             # Create a Redis store with the specified TTL configuration
             async with AsyncRedisSaver.from_conn_string(REDIS_URI) as checkpointer:
-                print("checkpointer", checkpointer)
                 await checkpointer.asetup()
 
                 async with AsyncRedisStore.from_conn_string(
@@ -169,7 +165,7 @@ class ChatService:
                     graph = self.builder.compile(checkpointer=checkpointer)
                     # Get response from agent
                     response = await graph.ainvoke(
-                        {"messages": [("user", message)]}, config
+                        {"messages": [("user", str(message))]}, config
                     )
 
                     # Extract the final answer from the response

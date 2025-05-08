@@ -19,16 +19,16 @@ def en_state() -> CVState:
 class TestProcessInput:
     """Test cases for input processing."""
 
-    def test_process_input_empty(self, empty_state: CVState) -> None:
+    async def test_process_input_empty(self, empty_state: CVState) -> None:
         """Test processing empty input state."""
-        result = process_input(empty_state)
+        result = await process_input(empty_state)
         assert result["user_input"] is None, "Empty input should return None"
         assert result["chatbot_response"] is None, "Empty input should have no response"
 
-    def test_process_input_invalid(self, empty_state: CVState) -> None:
+    async def test_process_input_invalid(self, empty_state: CVState) -> None:
         """Test processing invalid input."""
         with pytest.raises(ValueError, match="Invalid state"):
-            process_input(None)  # type: ignore
+            await process_input(None)  # type: ignore
 
 
 class TestPromptGeneration:
@@ -49,13 +49,12 @@ class TestPromptGeneration:
         """Test generating prompts for different sections and languages."""
         state = CVState(language=language, current_section=section, current_field=field)
         result = generate_prompt(state)
-        assert expected_text in result["chatbot_response"].lower()
+        assert expected_text.lower() in result["chatbot_response"].lower()
         assert isinstance(result["chatbot_response"], str)
 
     def test_generate_prompt_invalid_section(self) -> None:
         """Test generating prompt for invalid section."""
-        state = CVState(current_section="invalid")
         with pytest.raises(
             ValueError, match="Invalid section: invalid. Expected one of:.*"
         ):
-            generate_prompt(state)
+            CVState(current_section="invalid")

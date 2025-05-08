@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 async def process_input(state: CVState) -> dict[str, Any]:
     """Process user input based on current state."""
+    if state is None:
+        raise ValueError("Invalid state: None provided.")
     if not state.user_input or not state.user_input.strip():
         return {"user_input": None, "chatbot_response": None}
 

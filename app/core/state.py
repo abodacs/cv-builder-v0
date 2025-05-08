@@ -48,7 +48,7 @@ class CVState(BaseModel):
         ]
         if v not in valid_sections:
             raise ValueError(
-                f"Invalid section: {v}. Must be one of: {', '.join(valid_sections)}"
+                f"Invalid section: {v}. Expected one of: {', '.join(valid_sections)}"
             )
         return v
 

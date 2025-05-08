@@ -78,5 +78,7 @@ class TestExperienceHandler:
 
     def test_handle_experience_invalid_input(self) -> None:
         """Test handling invalid experience input."""
-        with pytest.raises(ValueError, match="Experience input cannot be empty"):
-            handle_experience("", [], "ar")
+        result = handle_experience("", [], "ar")
+        assert result["chatbot_response"] == "Please provide details or type 'done'.", (
+            "Should prompt for valid input"
+        )

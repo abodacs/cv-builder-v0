@@ -51,7 +51,8 @@ class DataValidator:
         # Using 'en' as the reference for section names
         self._validation_rules: dict[str, ValidationRule] = {
             "personal_info": ValidationRule(
-                required_fields=["name", "email", "phone"],  # Address is often optional
+                # Address is often optional
+                required_fields=["name", "email", "phone"],
                 format_rules={
                     # Basic email format check
                     "email": r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
@@ -78,7 +79,8 @@ class DataValidator:
             ),
             "education": ValidationRule(
                 required_fields=[],  # Often a list; specific fields are within list items
-                format_rules={},  # Format rules (e.g., date) would apply to list items, harder to pre-validate here
+                # Format rules (e.g., date) would apply to list items, harder to pre-validate here
+                format_rules={},
                 prompt_template="""
                 Validate the Education section of a CV based on these criteria:
                 1. Clarity & Completeness: Each entry should clearly state the institution, degree/qualification, and dates (or expected date) of attendance/graduation. Field of study is important.
@@ -97,7 +99,8 @@ class DataValidator:
             ),
             "work_experience": ValidationRule(
                 required_fields=[],  # Often a list; specific fields are within list items
-                format_rules={},  # Format rules (e.g., date) would apply to list items
+                # Format rules (e.g., date) would apply to list items
+                format_rules={},
                 prompt_template="""
                 Validate the Work Experience section of a CV based on these criteria:
                 1. Clarity & Completeness: Each entry should clearly state the company, job title, and dates of employment. Responsibilities or achievements are crucial.
@@ -187,6 +190,131 @@ class DataValidator:
                     section_required=False,  # Default to not required
                 )
 
+    def pre_validate_section_data(
+        self, section: str, data: dict[str, Any] | list[Any] | str | None
+    ) -> str | None:
+        """
+        Perform preliminary validation checks on data for a specific section.
+        Suitable for use within tools before proceeding.
+
+        Args:
+            section: The section name (e.g., 'personal_info').
+            data: The data structure for that section (dict, list, str, None).
+
+        Returns:
+            An error message string if validation fails, None otherwise.
+        """
+        if section not in self._validation_rules:
+            logger.error(f"Attempted to pre-validate unknown section: {section}")
+            # Return user-friendly error for the tool to pass back
+            return f"Internal configuration error: Cannot validate unknown section '{section}'."
+
+        rule = self._validation_rules[section]
+
+        # 1. Check for missing required section if data is empty/None
+        if not data and rule.section_required:
+            # Explicitly check for empty lists/dicts too
+            if (isinstance(data, list | dict) and not data) or data is None:
+                return f"Missing required data for section: {section}"
+        elif not data:
+            return None  # Optional section is missing/empty, OK.
+
+        # 2. Field-specific checks (if data is a dictionary)
+        if isinstance(data, dict):
+            errors = []
+            # Check required fields are present and non-empty strings if applicable
+            missing_or_empty = []
+            for f in rule.required_fields:
+                val = data.get(f)
+                if val is None or (isinstance(val, str) and not val.strip()):
+                    missing_or_empty.append(f)
+            if missing_or_empty:
+                errors.append(
+                    f"Missing or empty required fields: {', '.join(missing_or_empty)}"
+                )
+
+            # Check format rules for present, non-empty fields
+            format_errors = []
+            for field, pattern in rule.format_rules.items():
+                value = data.get(field)
+                if (
+                    isinstance(value, str)
+                    and value.strip()
+                    and not self._validate_format(field, value, pattern)
+                ):
+                    # Provide more specific error messages
+                    if field == "email":
+                        format_errors.append(
+                            f"The format for '{field}' seems incorrect. Please use a valid email address (e.g., name@example.com)."
+                        )
+                    elif field == "phone":
+                        format_errors.append(
+                            f"The format for '{field}' seems incorrect. Please provide a valid phone number (e.g., including area/country code)."
+                        )
+                    else:
+                        format_errors.append(f"Invalid format for field '{field}'.")
+
+            if format_errors:
+                errors.extend(format_errors)
+
+            return "; ".join(errors) if errors else None
+
+        # 3. Basic list checks (if data is a list, e.g., education, experience, skills)
+        elif isinstance(data, list):
+            if rule.section_required and not data:
+                return f"Section '{section}' requires at least one entry, but the list is empty."
+
+            # Check structure/content of list items
+            item_errors = []
+            for i, item in enumerate(data):
+                item_num = i + 1
+                if section in ["education", "work_experience"]:
+                    if not isinstance(item, dict):
+                        item_errors.append(
+                            f"Entry {item_num} in '{section}' is not structured correctly."
+                        )
+                    # Add check for a key that should usually exist, like 'title' or 'school' depending on Pydantic models
+                    elif section == "education" and not item.get("school"):
+                        item_errors.append(
+                            f"Entry {item_num} in '{section}' is missing the 'school' name."
+                        )
+                    elif section == "work_experience" and not item.get("company"):
+                        item_errors.append(
+                            f"Entry {item_num} in '{section}' is missing the 'company' name."
+                        )
+                    # Check if *some* detail exists
+                    elif not item.get("details") and not (
+                        item.get("title") or item.get("degree")
+                    ):
+                        item_errors.append(
+                            f"Entry {item_num} in '{section}' seems incomplete (missing details/title/degree)."
+                        )
+                elif (
+                    section == "skills" and not isinstance(item, str)
+                ) or not item.strip():
+                    item_errors.append(
+                        f"Skill entry {item_num} in '{section}' is invalid or empty."
+                    )
+
+            return "; ".join(item_errors) if item_errors else None
+
+        # 4. Handle other types if necessary (e.g., simple string for summary)
+        elif isinstance(data, str):
+            if rule.section_required and not data.strip():
+                return f"The content for section '{section}' cannot be empty."
+            # Add length check? Example:
+            # if section == 'summary' and len(data) < 10:
+            #     return f"The summary for '{section}' seems too short."
+            return None  # Basic string validation passes
+
+        else:
+            logger.warning(
+                f"Unexpected data type ({type(data)}) for section {section} during pre-validation."
+            )
+            return (
+                f"Internal error: Unexpected data type received for section {section}."
+            )
+
     async def validate_cv(
         self, section: str, data: dict[str, Any], strict: bool = True
     ) -> tuple[bool, str]:
@@ -207,15 +335,15 @@ class DataValidator:
     def _validate_format(self, field: str, value: Any, rule: str) -> bool:
         """Validate field format using regex rules. Handles non-string values gracefully."""
         if not isinstance(value, str):
-            # Can't regex-validate non-strings
             return False
         try:
-            return bool(re.match(rule, value))
+            # Use fullmatch for stricter validation of the entire string
+            return bool(re.fullmatch(rule, value))
         except re.error as e:
             logger.error(
                 f"Regex error validating field '{field}' with rule '{rule}': {e}"
             )
-            return False  # Invalid regex pattern
+            return False
 
     def _pre_validate(self, section: str, data: dict[str, Any]) -> str | None:
         """Perform preliminary validation checks."""
@@ -419,12 +547,14 @@ class DataValidator:
             for line in lines[1:]:
                 line_upper = line.upper().strip()
                 if line_upper.startswith("ISSUES:"):
-                    message_parts.append("\n" + line)  # Add newline before Issues
+                    # Add newline before Issues
+                    message_parts.append("\n" + line)
                     issues_started = True
                     suggestions_started = False
                     current_section = "Issues"
                 elif line_upper.startswith("SUGGESTIONS:"):
-                    message_parts.append("\n" + line)  # Add newline before Suggestions
+                    # Add newline before Suggestions
+                    message_parts.append("\n" + line)
                     suggestions_started = True
                     issues_started = False
                     current_section = "Suggestions"
@@ -441,7 +571,8 @@ class DataValidator:
                             " " + line.strip()
                         )  # Append to previous bullet
                     else:
-                        message_parts.append(line)  # Append as new line under header
+                        # Append as new line under header
+                        message_parts.append(line)
                 # Ignore lines that don't fit the structure
             print("current_section:", current_section)
             formatted_message = "\n".join(message_parts).strip()
@@ -510,7 +641,8 @@ class DataValidator:
                     f"ERROR: Validation failed due to exception: {result}",
                 )
             elif isinstance(result, tuple) and len(result) == 2:
-                results[section] = result  # Store the (is_valid, message) tuple
+                # Store the (is_valid, message) tuple
+                results[section] = result
                 logger.info(
                     f"Batch validation result for {section}: {'Valid' if result[0] else 'Invalid'}"
                 )
