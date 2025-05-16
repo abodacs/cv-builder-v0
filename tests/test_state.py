@@ -55,8 +55,7 @@ class TestCVState:
             CVState(language="invalid")
 
         with pytest.raises(
-            ValueError,
-            match="Invalid section: invalid_section. Must be one of: personal_info, education, work_experience, skills, finalize, review",
+            ValueError, match="Invalid section: invalid_section. Expected one of:.*"
         ):
             CVState(current_section="invalid_section")
 

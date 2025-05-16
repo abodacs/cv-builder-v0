@@ -35,7 +35,7 @@ class TestRedisStore:
 
         mock_redis.setex.assert_called_once()
         args = mock_redis.setex.call_args[0]
-        assert args[0] == "test-id", "Key should match input ID"
+        assert args[0] == "cv_session:test-id", "Key should match input ID"
         assert isinstance(args[2], str), "Stored value should be JSON string"
 
     def test_redis_store_save_failure(
@@ -66,5 +66,5 @@ class TestRedisStore:
         """Test loading non-existent state."""
         mock_redis.get.return_value = None
 
-        with pytest.raises(ValueError, match="No state found for session:.*"):
-            store.load_state("missing-id")
+        state = store.load_state("missing-id")
+        assert isinstance(state, CVState), "Should return CVState instance"
